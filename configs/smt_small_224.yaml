@@ -1,0 +1,158 @@
+MODEL:
+  TYPE: 'smt'
+  NAME: 'smt_small_224'
+  PRETRAINED: 'checkpoints/pretrained/smt_small.pth'
+  NUM_CLASSES: 2  # Binary segmentation
+  DROP_RATE: 0.0
+  DROP_PATH_RATE: 0.2
+  CONVERT_WEIGHTS: True
+  BACKBONE:
+    NUM_LAYERS: 4 # Enable weight conversion from classification to segmentation
+
+  # SMT backbone configuration
+  SMT:
+    PATCH_SIZE: 4
+    IN_CHANS: 3
+    EMBED_DIMS: [64, 128, 256, 512]
+    CA_NUM_HEADS: [4, 4, 4, -1]
+    SA_NUM_HEADS: [-1, -1, 8, 16]
+    MLP_RATIOS: [4, 4, 4, 2]
+    QKV_BIAS: True
+    QK_SCALE: None
+    DEPTHS: [3, 4, 18, 2]
+    CA_ATTENTIONS: [1, 1, 1, 0]
+    HEAD_CONV: 3
+    EXPAND_RATIO: 2
+    DROP_RATE: 0.0
+    ATTN_DROP_RATE: 0.0
+    USE_LAYERSCALE: True
+    LAYERSCALE_VALUE: 1e-4
+
+  # UPerNet decoder configuration
+  DECODE_HEAD:
+    TYPE: 'UPerHead'
+    IN_CHANNELS: [64, 128, 256, 512]
+    IN_INDEX: [0, 1, 2, 3]
+    POOL_SCALES: [1, 2, 3, 6]
+    CHANNELS: 256
+    DROPOUT_RATIO: 0.1
+    NUM_CLASSES: 2
+    NORM_CFG:
+      TYPE: 'SyncBN'  # Use SyncBN for multi-GPU training
+      REQUIRES_GRAD: True
+    ALIGN_CORNERS: False
+    LOSS_DECODE:
+      TYPE: 'CrossEntropyLoss'
+      USE_SIGMOID: True  # Use sigmoid for binary segmentation
+      LOSS_WEIGHT: 1.0
+
+# Data loading configuration
+DATA:
+  BATCH_SIZE: 1  # Adjust based on GPU memory
+  DATA_PATH: 'datasets'
+  DATASET: 'custom'
+  IMG_SIZE: 512
+  PIN_MEMORY: False
+  NUM_WORKERS: 0
+  CACHE_MODE: 'no'  # Options: 'no', 'part', 'full'
+  INTERPOLATION: 'bicubic'
+  NORMALIZE:
+    MEAN: [0.485, 0.456, 0.406]
+    STD: [0.229, 0.224, 0.225]
+
+# Training configuration
+TRAIN:
+  START_EPOCH: 0
+  EPOCHS: 50
+  WARMUP_EPOCHS: 5
+  BASE_LR: 6e-5
+  WARMUP_LR: 1e-6
+  MIN_LR: 1e-6
+  WEIGHT_DECAY: 0.05
+  LAYER_DECAY: 0.75
+  EARLY_STOPPING:
+    ENABLED: True
+    PATIENCE: 7
+    MIN_DELTA: 0.0001
+    PLATEAU_THRESHOLD: 3
+    METRIC_HISTORY_SIZE: 5
+
+  # Progressive training strategy
+  FREEZE_BACKBONE: True
+  UNFREEZE_EPOCH: 10
+  BACKBONE_LR_MULTIPLIER: 0.1
+
+  EMA:
+    ENABLED: True
+    DECAY: 0.9999
+
+
+
+  # Training optimizations
+  ACCUMULATION_STEPS: 8
+  CLIP_GRAD: 5.0
+  AUTO_RESUME: True
+  USE_CHECKPOINT: True
+  GRADIENT_CHECKPOINTING: True
+
+
+  # Optimizer configuration
+  OPTIMIZER:
+    NAME: 'adamw'
+    EPS: 1e-8
+    BETAS: [0.9, 0.999]
+    MOMENTUM: 0.9
+    # Removed AMSGRAD as it's now handled in parameter groups
+
+  # Learning rate scheduler
+  LR_SCHEDULER:
+    NAME: 'cosine'  # Options: 'cosine', 'linear', 'step', 'multistep'
+    DECAY_EPOCHS: 30
+    DECAY_RATE: 0.1
+    WARMUP_PREFIX: True
+    MULTISTEPS: [ ]  # Example for multistep: [30, 60, 90]
+    GAMMA: 0.1
+    NOISE_PCT: 0.67  # For linear scheduler
+    NOISE_STD: 1.0   # For linear scheduler
+    NOISE_SEED: 42    # For linear scheduler
+
+# Augmentation configuration
+AUG:
+  COLOR_JITTER: 0.4
+  AUTO_AUGMENT: 'rand-m9-mstd0.5-inc1'
+  REPROB: 0.25
+  REMODE: 'pixel'
+  RECOUNT: 1
+  MIXUP: 0.2
+  CUTMIX: 1.0
+  MIXUP_PROB: 1.0
+  MIXUP_SWITCH_PROB: 0.5
+  MIXUP_MODE: 'batch'
+
+# Testing configuration
+TEST:
+  CROP: True
+  SEQUENTIAL: False
+  SHUFFLE: False
+  MODE: 'whole'
+
+# Visualization settings
+VIS:
+  MAX_SAMPLES: 20
+  FEATURE_VIS: True
+  SAVE_PATH: 'visualizations'
+  DPI: 300
+
+# Runtime settings
+AMP_ENABLE: True
+OUTPUT: 'work_dirs/smt_segmentation'
+SAVE_FREQ: 1
+PRINT_FREQ: 20
+SEED: 42
+TAG: 'default'
+LOCAL_RANK: 0
+
+# Performance optimization
+THROUGHPUT_MODE: False
+FUSED_WINDOW_PROCESS: False
+FUSED_LAYERNORM: False
